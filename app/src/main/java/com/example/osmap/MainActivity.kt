@@ -40,6 +40,8 @@ class MainActivity : AppCompatActivity() {
     private var startPoint: GeoPoint? = null
     private var endPoint: GeoPoint? = null
     private lateinit var locationOverlay: MyLocationNewOverlay
+    private lateinit var trailOverlay: Polyline
+    private val trailPoints = mutableListOf<GeoPoint>()
 
     companion object {
         private const val REQUEST_PERMISSIONS_REQUEST_CODE = 1
@@ -62,6 +64,12 @@ class MainActivity : AppCompatActivity() {
         } else {
             setupMap()
         }
+        trailOverlay = Polyline().apply {
+            width = 5f // Ancho de la polilínea
+            color = Color.BLUE // Color de la polilínea
+        }
+        mapView.overlayManager.add(trailOverlay)
+
 
         mapView.overlays.add(object : org.osmdroid.views.overlay.Overlay() {
             override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
@@ -102,7 +110,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     private fun resetPoints() {
+        // Limpiar los puntos del rastro
+        trailPoints.clear()
+        mapView.invalidate()
+        Toast.makeText(this, "Rastro reiniciado", Toast.LENGTH_SHORT).show()
         startPoint = null
         endPoint = null
         // Mantener solo la capa de ubicación y eliminar otros overlays (marcadores, rutas, etc.)
