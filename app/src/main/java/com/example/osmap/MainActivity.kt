@@ -29,7 +29,13 @@ import retrofit2.converter.gson.GsonConverterFactory
 import com.example.osmap.network.MapService
 import com.example.osmap.network.RouteRequest
 import com.example.osmap.network.RouteResponse
+import android.location.Location
+
+
+
 private lateinit var userLocationMarker: Marker
+
+
 
 
 class MainActivity : AppCompatActivity() {
@@ -42,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var locationOverlay: MyLocationNewOverlay
     private lateinit var trailOverlay: Polyline
     private val trailPoints = mutableListOf<GeoPoint>()
+
+
+
 
     companion object {
         private const val REQUEST_PERMISSIONS_REQUEST_CODE = 1
@@ -58,18 +67,16 @@ class MainActivity : AppCompatActivity() {
         mapView.maxZoomLevel = 19.0
         mapController = mapView.controller
 
-        // Solicitar permisos de ubicación si no están concedidos
         if (!checkPermissions()) {
             requestPermissions()
         } else {
             setupMap()
         }
         trailOverlay = Polyline().apply {
-            width = 5f // Ancho de la polilínea
+            width = 50f // Ancho de la polilínea
             color = Color.BLUE // Color de la polilínea
         }
         mapView.overlayManager.add(trailOverlay)
-
 
         mapView.overlays.add(object : org.osmdroid.views.overlay.Overlay() {
             override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
@@ -82,8 +89,7 @@ class MainActivity : AppCompatActivity() {
                     } else if (endPoint == null) {
                         endPoint = geoPoint as GeoPoint?
                         addMarker(endPoint!!)
-                        ///calculateAndShowRoute(startPoint!!, endPoint!!)
-                        getRouteFromAPI(algorithm = "busqueda_profundidad", startPoint!!, endPoint!!)
+                        getRouteFromAPI("busqueda_profundidad", startPoint!!, endPoint!!)
                     }
                     return true
                 }
@@ -91,7 +97,6 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Configurar el botón para ir a la ubicación del usuario
         val btnLocate: Button = findViewById(R.id.myLocationButton)
         btnLocate.setOnClickListener {
             if (locationOverlay.myLocation != null) {
@@ -103,22 +108,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Configurar el botón para reiniciar la selección de puntos
         val btnReset: Button = findViewById(R.id.resetButton)
         btnReset.setOnClickListener {
             resetPoints()
         }
+        trailOverlay = Polyline().apply {
+            width = 50f
+            color = Color.BLUE
+        }
+        mapView.overlayManager.add(trailOverlay)
     }
 
 
     private fun resetPoints() {
-        // Limpiar los puntos del rastro
+        // Limpiar los puntos
         trailPoints.clear()
         mapView.invalidate()
         Toast.makeText(this, "Rastro reiniciado", Toast.LENGTH_SHORT).show()
         startPoint = null
         endPoint = null
-        // Mantener solo la capa de ubicación y eliminar otros overlays (marcadores, rutas, etc.)
         mapView.overlays.clear()
         mapView.overlays.add(locationOverlay)
         mapView.overlays.add(object : org.osmdroid.views.overlay.Overlay() {
@@ -143,6 +151,15 @@ class MainActivity : AppCompatActivity() {
         mapView.invalidate()
         Toast.makeText(this, "Selección de puntos reiniciada", Toast.LENGTH_SHORT).show()
     }
+
+    private fun onLocationChanged(newLocation: GeoPoint) {
+        trailPoints.add(newLocation)
+        trailOverlay.setPoints(trailPoints)
+        trailOverlay.color = Color.BLUE
+        mapView.invalidate()
+    }
+
+
 
     private fun addMarker(geoPoint: GeoPoint) {
         val marker = Marker(mapView)
@@ -190,56 +207,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun displayRouteOnMap(route: List<List<Double>>, startPoint: GeoPoint) {
-        println("Contenido de la lista route:")
-        for (point in route) {
-            println("Latitud: ${point[1]}, Longitud: ${point[0]}")
-        }
+        mapView.overlays.clear()
+
         val geoPoints = route.map { GeoPoint(it[1], it[0]) }
         val geoPointsWithStart = geoPoints.plus(startPoint)
         val polyline = Polyline().apply {
-            width = 5f // Ancho de la polilínea
-            color = Color.RED // Color de la polilínea
+            width = 50f // Ancho de la polilínea
+            color = Color.BLUE // Establecer el color del trazo como azul
             setPoints(geoPointsWithStart)
-            outlinePaint.color = Color.RED
+            outlinePaint.color = Color.BLUE
         }
         mapView.overlayManager.add(polyline)
         mapView.invalidate()
     }
 
-    /**private fun calculateAndShowRoute(startPoint: GeoPoint, endPoint: GeoPoint) {
-        val retrofit = Retrofit.Builder()
-            .baseUrl("https://router.project-osrm.org")
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-
-        val service = retrofit.create(OSRMRoutingService::class.java)
-        val coordinates = "${startPoint.longitude},${startPoint.latitude};${endPoint.longitude},${endPoint.latitude}"
-        val call = service.getRoute(coordinates)
-
-        call.enqueue(object : Callback<RouteResponse> {
-            override fun onResponse(call: Call<RouteResponse>, response: Response<RouteResponse>) {
-                val polyline = Polyline().apply {
-                    width = 5f // Ancho de la polilínea
-                    color = Color.RED // Color de la polilínea
-                }
-                if (response.isSuccessful) {
-                    val routeResponse = response.body()
-
-                    if (routeResponse != null && routeResponse.routes.isNotEmpty()) {
-                        val geometry = routeResponse.routes[0].geometry
-                        val pointsList = PolylineDecoder.decode(geometry)
-                        polyline.setPoints(pointsList)
-                        mapView.overlays.add(polyline)
-                        mapView.invalidate()
-                    }
-                }
-            }
-
-            override fun onFailure(call: Call<RouteResponse>, t: Throwable) {
-                Log.e("OSRM", "Error fetching route", t)
-            }
-        })
-    }*/
 
     object PolylineDecoder {
         private const val PRECISION = 1E5 // Utilizado para decodificar la polilínea
@@ -314,19 +295,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun setupMap() {
         // Crear un nuevo overlay para la ubicación del usuario
-        locationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), mapView)
+        val locationProvider = GpsMyLocationProvider(this)
+        locationOverlay = MyLocationNewOverlay(locationProvider, mapView)
         locationOverlay.enableMyLocation()
-        locationOverlay.enableFollowLocation() // Para centrar automáticamente el mapa en la ubicación del usuario
-        mapView.overlays.add(locationOverlay)
+        locationOverlay.enableFollowLocation() // Para centrar automáticamente el mapa
 
         // Crear un marcador para la ubicación del usuario
         userLocationMarker = Marker(mapView)
         userLocationMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         userLocationMarker.icon = ContextCompat.getDrawable(this, android.R.drawable.ic_menu_mylocation) // Usar el símbolo predeterminado de Android Studio
-        mapView.overlays.add(userLocationMarker)
 
         // Configurar un listener para detectar cuando se obtiene la ubicación del usuario por primera vez
         locationOverlay.runOnFirstFix {
@@ -334,22 +313,6 @@ class MainActivity : AppCompatActivity() {
                 // Obtener la ubicación del usuario después de que se ha fijado por primera vez
                 val myLocation = locationOverlay.myLocation
                 if (myLocation != null) {
-                    // Si la ubicación del usuario está disponible, centrar el mapa en esa ubicación
-                    val startPoint = GeoPoint(myLocation.latitude, myLocation.longitude)
-                    mapController.setCenter(startPoint)
-                    mapController.setZoom(16.0)
-                    // Mostrar la ubicación del usuario en el mapa
-                    userLocationMarker.position = startPoint
-                    mapView.invalidate()
-                }
-            }
-        }
-        locationOverlay.runOnFirstFix {
-            runOnUiThread {
-                // Obtener la ubicación del usuario después de que se ha fijado por primera vez
-                val myLocation = locationOverlay.myLocation
-                if (myLocation != null) {
-                    // Si la ubicación del usuario está disponible, centrar el mapa en esa ubicación
                     val startPoint = GeoPoint(myLocation.latitude, myLocation.longitude)
                     mapController.setCenter(startPoint)
                     mapController.setZoom(16.0)
@@ -360,81 +323,28 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-// Actualizar la ubicación del usuario cuando cambie (siempre y cuando el método runOnFirstFix ya haya sido invocado)
-        locationOverlay.runOnFirstFix {
-            runOnUiThread {
-                // Obtener la ubicación del usuario después de que se ha fijado por primera vez
-                val myLocation = locationOverlay.myLocation
-                if (myLocation != null) {
-                    // Si la ubicación del usuario está disponible, centrar el mapa en esa ubicación
-                    val startPoint = GeoPoint(myLocation.latitude, myLocation.longitude)
-                    mapController.setCenter(startPoint)
-                    mapController.setZoom(16.0)
-                    // Mostrar la ubicación del usuario en el mapa
-                    userLocationMarker.position = startPoint
-                    mapView.invalidate()
-                }
+        // Listener para actualizaciones de la ubicación
+        locationProvider.locationUpdateMinDistance = 10f
+        locationProvider.locationUpdateMinTime = 1000
+        locationProvider.startLocationProvider { location, _ ->
+            if (location != null) {
+                val geoPoint = GeoPoint(location.latitude, location.longitude)
+                onLocationChanged(geoPoint)
+                userLocationMarker.position = geoPoint
+                mapView.invalidate()
             }
         }
 
-// Actualizar la ubicación del usuario cuando cambie (siempre y cuando el método runOnFirstFix ya haya sido invocado)
-        locationOverlay.runOnFirstFix {
-            runOnUiThread {
-                // Obtener la ubicación del usuario después de que se ha fijado por primera vez
-                val myLocation = locationOverlay.myLocation
-                if (myLocation != null) {
-                    // Si la ubicación del usuario está disponible, centrar el mapa en esa ubicación
-                    val startPoint = GeoPoint(myLocation.latitude, myLocation.longitude)
-                    mapController.setCenter(startPoint)
-                    mapController.setZoom(16.0)
-                    // Mostrar la ubicación del usuario en el mapa
-                    userLocationMarker.position = startPoint
-                    mapView.invalidate()
-                }
-            }
-        }
-
-// Actualizar la ubicación del usuario cuando cambie (siempre y cuando el método runOnFirstFix ya haya sido invocado)
-        locationOverlay.runOnFirstFix {
-            runOnUiThread {
-                // Obtener la ubicación del usuario después de que se ha fijado por primera vez
-                val myLocation = locationOverlay.myLocation
-                if (myLocation != null) {
-                    // Si la ubicación del usuario está disponible, centrar el mapa en esa ubicación
-                    val startPoint = GeoPoint(myLocation.latitude, myLocation.longitude)
-                    mapController.setCenter(startPoint)
-                    mapController.setZoom(16.0)
-                    // Mostrar la ubicación del usuario en el mapa
-                    userLocationMarker.position = startPoint
-                    mapView.invalidate()
-                }
-            }
-        }
-
-// Actualizar la ubicación del usuario cuando cambie (siempre y cuando el método runOnFirstFix ya haya sido invocado)
-        locationOverlay.runOnFirstFix {
-            runOnUiThread {
-                // Obtener la ubicación del usuario después de que se ha fijado por primera vez
-                val myLocation = locationOverlay.myLocation
-                if (myLocation != null) {
-                    // Si la ubicación del usuario está disponible, centrar el mapa en esa ubicación
-                    val startPoint = GeoPoint(myLocation.latitude, myLocation.longitude)
-                    mapController.setCenter(startPoint)
-                    mapController.setZoom(16.0)
-                    // Mostrar la ubicación del usuario en el mapa
-                    userLocationMarker.position = startPoint
-                    mapView.invalidate()
-                }
-            }
-        }
-
+        // Agregar los overlays al mapa
+        mapView.overlays.add(locationOverlay)
+        mapView.overlays.add(trailOverlay)
+        mapView.overlays.add(userLocationMarker)
+    }
     }
 
 
 
-}
-
-interface OSRMRoutingService {
+    interface OSRMRoutingService {
     @GET("/route/v1/driving/{coordinates}")
     fun getRoute(
         @retrofit2.http.Path("coordinates") coordinates: String,
